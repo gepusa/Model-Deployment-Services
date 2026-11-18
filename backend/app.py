@@ -13,22 +13,25 @@ model = joblib.load("superkart_model.joblib")
 def preprocess_raw_dataframe(df_raw):
     df = df_raw.copy()
     
-    # 1. Harmonize product sugar categories
+    # 1. Extract Product_Id_char if Product_Id exists
+    if 'Product_Id' in df.columns:
+        df['Product_Id_char'] = df['Product_Id'].astype(str).str[:2]
+    elif 'Product_Id_char' not in df.columns:
+        df['Product_Id_char'] = 'FD'
+        
+    # 2. Map Product_Id_char to Product_Category
+    category_map = {'FD': 'Food', 'DR': 'Drink', 'NC': 'Non-Consumable'}
+    df['Product_Category'] = df['Product_Id_char'].map(category_map).fillna('Food')
+    
+    # 3. Harmonize sugar content categories
     if 'Product_Sugar_Content' in df.columns:
         df['Product_Sugar_Content'] = df['Product_Sugar_Content'].replace('reg', 'Regular')
-        
-    # 2. Extract Product_Id characters
-    if 'Product_Id' in df.columns:
-        df['Product_Id_char'] = df['Product_Id'].str[:2]
-        # 3. Create Product_Category mapped variable
-        category_map = {'FD': 'Food', 'DR': 'Drink', 'NC': 'Non-Consumable'}
-        df['Product_Category'] = df['Product_Id_char'].map(category_map)
         
     # 4. Calculate Store Age (Years)
     if 'Store_Establishment_Year' in df.columns:
         df['Store_Age_Years'] = 2025 - df['Store_Establishment_Year']
 
-    # Set fallback defaults for missing columns to prevent pipeline mismatch
+    # Set fallback defaults for columns to prevent pipeline mismatch
     defaults = {
         'Product_Weight': 12.66,
         'Product_Sugar_Content': 'Low Sugar',
@@ -44,7 +47,7 @@ def preprocess_raw_dataframe(df_raw):
     }
     
     for col, default_val in defaults.items():
-        if col not in df.columns:
+        if col not in df.columns or df[col].isnull().all():
             df[col] = default_val
 
     # Explicitly enforce correct training features structure and ordering
